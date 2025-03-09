@@ -1,0 +1,94 @@
+---
+title: "Breast Cancer Data"
+author: "Arshak Parsa"
+format: pdf
+date: last-modified
+toc: true
+code-block-border-left: "#31BAE9"
+bibliography: references.bib
+---
+
+```{r}
+library(xtable)
+options(xtable.comment = FALSE)
+```
+
+# The Dataset
+
+We will use gene expression data showing microarray results for different probes used to examine gene expression profiles in 91 different breast cancer patient samples and metdata for the sampled patients.
+
+Link of the dataset: https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE2990
+
+## The GPL96 Platform
+
+The chip that has been being used for this dataset is Affymetrix Human Genome U133A Array \[HG-U133A\].
+
+![Picture of the chip](Images/U133A.jpeg)
+
+## Import The Dataset
+
+```{r, load data}
+#| warning: false
+library(SummarizedExperiment)
+cancer = readRDS("cancer_expression.rds")
+mat = t(assay(cancer))
+#metadata = colData(cancer)
+metadata = read.delim("GSE2990_suppl_info.txt")
+```
+
+```{r}
+dim(mat)
+dim(metadata)
+```
+
+```{r, print some of data}
+#| results: asis
+range(mat)
+xtable(mat[1:5,1:5])
+```
+
+```{r}
+head(metadata)
+```
+
+```{r}
+table(metadata$treatment)
+```
+
+For microarray profiling and grading, we used primary tumor tissues that were collected before the beginning of tamoxifen treatment, so that the gene list identified with the training set was not affected by disease outcome or treatment.[@Sotiriou2006]
+
+![](Images/Tamoxifen2DACS.svg.png)
+![](Images/tamoxifen.jpeg)
+
+## Correlation Matrix
+
+Well R is unable to calculate the correlation matrix for the whole dataset! We calculate the correlation for the first 20 columns here
+
+```{r}
+library(reshape2)
+mat.cor = round(cor(mat[,1:20]),2)
+mat.cor.melted <- melt(mat.cor)
+
+dim(mat.cor)
+
+library(ggplot2)
+ggplot(data = mat.cor.melted, aes(x=Var1, y=Var2,
+                                   fill=value)) + 
+geom_tile()+
+geom_text(aes(Var2, Var1, label = value), 
+          color = "white", size = 1)
+```
+
+In order to calculate the correlation matrix, we need to convert this dataset into csv file and then read it in julia
+
+```         
+write.csv(mat,"mat.csv")
+```
+
+We Run the Julia code for correlation matrix
+
+# See Also
+
+The website I found which performed PCA on this dataset (I also downloaded the dataset from this website in RDS file format):
+
+https://carpentries-incubator.github.io/high-dimensional-stats-r/04-principal-component-analysis.html
