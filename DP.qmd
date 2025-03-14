@@ -1,0 +1,132 @@
+---
+title: "Data Preprocessing"
+format: pdf
+author: "Arshak Parsa"
+date: last-modified
+code-block-border-left: "#31BAE9"
+---
+
+```{r}
+#| warning: false
+library(affy)
+```
+
+
+## GEOquery
+
+```{r}
+#| eval: false
+gset = getGEO("GSE2990", getGPL = FALSE)
+saveRDS(gset,"gset.rds")
+```
+
+```{r}
+gset = readRDS("gset.rds")
+mat = exprs(gset[[1]])
+# remove Affymetrix control probes from the data
+mat = mat[-grep("^AFFX", rownames(mat)), ] 
+dim(mat)
+dim(pData(gset[[1]]))
+```
+
+
+
+```{r}
+metadata = pData(gset[[1]])
+se = SummarizedExperiment::SummarizedExperiment(
+    assays = list(expression = mat),
+    colData = metadata
+)
+
+```
+
+```{r}
+#| eval: false
+write.csv(pData(gset[[1]]),"pData.csv")
+saveRDS(se,"cancer189.rds")
+```
+
+## Another way
+
+I also tried another way (Since I'm new to these things, I don't know what I'm doing).
+
+First extract the `GSE2990_RAW.tar` file and then run the following command in linux to unzip all the gz files
+
+```{bash}
+#| eval: false
+for f in *.gz; do gunzip $f; done
+```
+
+```{r}
+#setwd if needed
+cell_file = ReadAffy()
+mat2 = exprs(cell_file)
+dim(mat2)
+```
+
+## RMA Normalization
+
+```{r}
+#| eval: false
+# If affy::rma doesn't work, run the following command
+# BiocManager::install("preprocessCore", configure.args = c(preprocessCore = "--disable-threading"), force= TRUE, update=TRUE, type = "source")
+
+write.csv(exprs(affy::rma(cell_file)),"mat_rma.csv",
+          row.names = T,col.names = T)
+```
+
+```{r}
+mat_rma = read.csv("mat_rma.csv",header = T)
+rownames(mat_rma)=mat_rma[,1]
+mat_rma = mat_rma[,-1]
+```
+
+## RNA degradation
+
+```{r}
+deg = AffyRNAdeg(cell_file)
+
+plotAffyRNAdeg(deg)
+```
+
+I'm not a biologist, but I guess this plot looks fine!
+
+```{r}
+#boxplot(cell_file) # Looks weird so I do not plot it
+# This one doesn't look good but I don't want to remove any data
+hist(cell_file) 
+
+```
+
+
+## Is `mat_rma` equal to `mat`?
+
+Remove Affymetrix control probes from the data
+
+```{r}
+mat_rma = mat_rma[-grep("^AFFX", rownames(mat_rma)), ]
+dim(mat_rma)
+# check equality of mat and mat_rma
+prod(toupper(sub('.{4}$', '', colnames(mat_rma)))==colnames(mat))
+prod(rownames(mat)==rownames(mat_rma))
+# rownames have different orders
+mat_rma = mat_rma[rownames(mat),]
+prod(rownames(mat)==rownames(mat_rma))
+max(abs(mat-mat_rma))
+```
+
+This means GEOquery normalized data is different from `affy::rma`.
+
+Let's try mas5
+
+```{r}
+#| eval: false
+mat.mas5 = mas5(cell_file)
+# Took a LOT OF TIME!
+mat.mas5 = mat.mas5[-grep("^AFFX", rownames(mat.mas5)), ]
+write.csv(log2(exprs(mat.mas5)),"mat.mas5.csv",
+          row.names = T,col.names = T)
+# Just DON'T TRY THIS!
+```
+
+
