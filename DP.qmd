@@ -30,20 +30,9 @@ dim(pData(gset[[1]]))
 ```
 
 
-
-```{r}
-metadata = pData(gset[[1]])
-se = SummarizedExperiment::SummarizedExperiment(
-    assays = list(expression = mat),
-    colData = metadata
-)
-
-```
-
 ```{r}
 #| eval: false
 write.csv(pData(gset[[1]]),"pData.csv")
-saveRDS(se,"cancer189.rds")
 ```
 
 ## Another way
@@ -68,9 +57,9 @@ dim(mat2)
 
 ```{r}
 #| eval: false
-# If affy::rma doesn't work, run the following command
+# If affy::rma doesn't work, run the following command 
+#(Don't forget to restart R session)
 # BiocManager::install("preprocessCore", configure.args = c(preprocessCore = "--disable-threading"), force= TRUE, update=TRUE, type = "source")
-
 write.csv(exprs(affy::rma(cell_file)),"mat_rma.csv",
           row.names = T,col.names = T)
 ```
@@ -129,4 +118,78 @@ write.csv(log2(exprs(mat.mas5)),"mat.mas5.csv",
 # Just DON'T TRY THIS!
 ```
 
+## Is `GSE2990_suppl_info.txt` valid?
 
+Let's use this file as our metadata
+
+```{r}
+metadata = read.delim("GSE2990_suppl_info.txt")
+metadata_pData = pData(gset[[1]])
+```
+
+```{r}
+GotNewInfo = function(x,y){
+  # first element indicates that x and y are identical 
+  # second element is the number of new datas that are missing in x
+  res = c(all(na.omit(x==y))
+           ,sum(!(is.na(y)[which(is.na(x)==TRUE)]))
+           ,sum(is.na(x))
+           ,sum(is.na(y))
+           )
+  names(res) = c("is.same","new.info","#naX","#naY")
+  return(res)
+}
+GotNewInfo(c(1,2,NA,4,NA,NA),c(1,2,NA,4,5,7))
+```
+
+```{r}
+# check GEO accession 🗸
+all(metadata$geo_accn==metadata_pData$geo_accession)
+
+# check tamoxifen 🗸
+all(metadata_pData$description[which(metadata$treatment=="tamoxifen")]==
+"Tumor samples from Tamoxifen-only treated primary breast cancer patients")
+
+# check grade 
+table(metadata$grade,useNA="always")
+table(metadata_pData$`grade:ch1`)
+# How is this possible?
+# I guess we shouldn't include grade
+all(metadata$grade==as.numeric(metadata_pData$`grade:ch1`))
+
+# I don't know anything about node 
+
+# check size 🗸
+# metadata_pData has more missing data! Weird!
+GotNewInfo(metadata$size,metadata_pData$`size:ch1`)
+
+#check age 🗸
+GotNewInfo(metadata$age,as.numeric(metadata_pData$`age:ch1`))
+
+#check er 🗸
+GotNewInfo(metadata$er,as.numeric(metadata_pData$`er:ch1`))
+
+#check event.rfs 🗸
+GotNewInfo(metadata$event.rfs,as.numeric(metadata_pData$`distant rfs:ch1`))
+
+#check time.rfs 🗸
+all(na.omit(metadata$time.rfs-
+        as.numeric(metadata_pData$`time rfs:ch1`)/365)<(10^-6))
+# so time.rfs is in years
+
+# And I still don't know anything about time.dmfs
+```
+
+
+```{r}
+se = SummarizedExperiment::SummarizedExperiment(
+    assays = list(expression = mat),
+    colData = metadata[,-5]
+)
+
+```
+
+```{r}
+#| eval: false
+saveRDS(se,"cancer189.rds")
+```
